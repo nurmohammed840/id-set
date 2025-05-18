@@ -1,0 +1,10 @@
+[package]
+name = "id-set"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = """
+A library for creating and managing sets of unique identifiers.
+"""
+
+[dependencies]
