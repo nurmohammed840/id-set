@@ -2,8 +2,11 @@
 #![deny(missing_docs)]
 #![allow(clippy::new_without_default)]
 
+/// A module that provides functions to calculate the number of slots.
+pub mod slot_count;
+
 use std::{
-    mem,
+    fmt, mem,
     ops::Deref,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -26,6 +29,12 @@ impl<const N: usize> IdSet<N> {
             slots: [const { AtomicUsize::new(0) }; N],
         }
     }
+
+    // #[inline]
+    // #[doc(hidden)]
+    // pub fn slots(&self) -> &[AtomicUsize] {
+    //     &self.slots
+    // }
 
     /// Returns the number of memory in bytes.
     #[inline]
@@ -52,10 +61,15 @@ impl<const N: usize> IdSet<N> {
     pub fn has(&self, id: usize) -> bool {
         let slot_idx = id / SLOT_SIZE;
         let mask = 1 << (id % SLOT_SIZE);
-        self.slots[slot_idx].load(Ordering::Acquire) & mask != 0
+
+        self.slots
+            .get(slot_idx)
+            .is_some_and(|slot| slot.load(Ordering::Acquire) & mask != 0)
     }
 
     /// Sets the id to `true`
+    ///
+    /// Returns `Ok(true)` if the id was not set before, otherwise `Ok(false)`.
     ///
     /// ## Examples
     ///
@@ -66,13 +80,22 @@ impl<const N: usize> IdSet<N> {
     /// assert_eq!(ids.has(0), true);
     /// ```
     #[inline]
-    pub fn set(&self, id: usize) {
+    pub fn set(&self, id: usize) -> Result<bool, OutOfBoundsError> {
         let slot_idx = id / SLOT_SIZE;
         let mask = 1 << (id % SLOT_SIZE);
-        self.slots[slot_idx].fetch_or(mask, Ordering::Release);
+
+        let slot = self
+            .slots
+            .get(slot_idx)
+            .ok_or(OutOfBoundsError)?
+            .fetch_or(mask, Ordering::Release);
+
+        Ok(slot & mask != 0)
     }
 
     /// Sets the id to `false`
+    ///
+    /// Returns `Ok(true)` if the id was set before, otherwise `Ok(false)`.
     ///
     /// ## Examples
     ///
@@ -85,10 +108,17 @@ impl<const N: usize> IdSet<N> {
     /// assert_eq!(ids.has(0), false);
     /// ```
     #[inline]
-    pub fn remove(&self, id: usize) {
+    pub fn remove(&self, id: usize) -> Result<bool, OutOfBoundsError> {
         let slot_idx = id / SLOT_SIZE;
         let mask = 1 << (id % SLOT_SIZE);
-        self.slots[slot_idx].fetch_and(!mask, Ordering::Release);
+
+        let slot = self
+            .slots
+            .get(slot_idx)
+            .ok_or(OutOfBoundsError)?
+            .fetch_and(!mask, Ordering::Release);
+
+        Ok(slot & mask != 0)
     }
 
     /// Returns the number of ids that are set to `true`
@@ -184,28 +214,15 @@ impl<const N: usize> Deref for IdAllocator<N> {
     }
 }
 
-/// A module that provides functions to calculate the number of slots.
-pub mod slot_count {
-    use std::mem;
+/// This error is returned when trying to set or remove an id that is out of bounds.
+#[derive(Debug, PartialEq, Eq)]
 
-    /// Returns the number of slots needed to store the given number of bits.
-    pub const fn from_bits(n: usize) -> usize {
-        n / usize::BITS as usize
-    }
+pub struct OutOfBoundsError;
 
-    /// Returns the number of slots available in the given number of bytes.
-    pub const fn from_bytes(n: usize) -> usize {
-        n / mem::size_of::<usize>()
-    }
-
-    /// Returns the number of slots available in the given number of kilobytes.
-    pub const fn from_kb(n: usize) -> usize {
-        n * 1024 / mem::size_of::<usize>()
-    }
-
-    /// Returns the number of slots available in the given number of megabytes.
-    pub const fn from_mb(n: usize) -> usize {
-        n * 1024 * 1024 / mem::size_of::<usize>()
+impl std::error::Error for OutOfBoundsError {}
+impl fmt::Display for OutOfBoundsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Id out of bounds")
     }
 }
 
@@ -216,6 +233,7 @@ fn rotate_left<T>(slice: &[T], n: usize) -> impl Iterator<Item = &T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused_must_use)]
     use super::*;
 
     #[test]
@@ -246,14 +264,17 @@ mod tests {
         ids.clear();
         assert_eq!(ids.total_ids(), 0);
     }
-}
 
-#[test]
-fn test_name() {
-    static A: IdAllocator<{ slot_count::from_kb(1) }> = IdAllocator::new();
+    #[test]
+    fn test_prev_value() {
+        let ids: IdAllocator<{ slot_count::from_bits(64) }> = IdAllocator::new();
 
-    println!("A.mem_size(): {:#?}", A.mem_size() * 8);
-    while let Some(_) = A.next_id() {}
+        assert_eq!(ids.remove(0), Ok(false));
+        assert_eq!(ids.set(0), Ok(false));
+        assert_eq!(ids.set(0), Ok(true));
+        assert_eq!(ids.remove(0), Ok(true));
+        assert_eq!(ids.remove(0), Ok(false));
 
-    println!("A.mem_size(): {:#?}", A.total_ids());
+        assert!(ids.set(65).is_err());
+    }
 }
