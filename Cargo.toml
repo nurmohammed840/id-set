@@ -1,10 +1,11 @@
 [package]
-name = "id-set"
+name = "index-set"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = """
-A library for creating and managing sets of unique identifiers.
+bitset implementation with support for atomic operations
 """
+keywords = ["bitset", "data-structures"]
 
 [dependencies]
