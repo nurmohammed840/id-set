@@ -1,6 +1,6 @@
 use crate::*;
 
-/// A thread-safe bitset that uses atomic operations to manage bits.
+/// Same as `[AtomicUsize; N]`, but with an additional functionality.
 pub struct AtomicBitSet<const N: usize> {
     bitset: [AtomicUsize; N],
     // used for optimizing the search to find the next free bit
@@ -10,12 +10,12 @@ pub struct AtomicBitSet<const N: usize> {
 impl<const N: usize> AtomicBitSet<N> {
     /// Creates a new `AtomicBitSet` with the specified number of slots.
     /// Each slot can hold 32/64 bits depending on the architecture.
-    /// 
+    ///
     /// ## Examples
-    /// 
+    ///
     /// ```rust
     /// use index_set::{AtomicBitSet, slot_count};
-    /// 
+    ///
     /// let bitset: AtomicBitSet<{ slot_count::from_bits(128) }> = AtomicBitSet::new();
     /// ```
     #[inline]
@@ -35,10 +35,22 @@ impl<const N: usize> AtomicBitSet<N> {
     /// ## Examples
     ///
     /// ```rust
-    /// # use index_set::{AtomicBitSet, slot_count};
-    /// let ids: AtomicBitSet<{ slot_count::from_bits(128) }> = AtomicBitSet::new();
-    /// assert_eq!(ids.set_next_free_bit(), Some(0));
-    /// assert_eq!(ids.set_next_free_bit(), Some(1));
+    /// use index_set::{AtomicBitSet, slot_count, BitSet, SharedBitSet};
+    /// // Create a new AtomicBitSet with memory size of 1 kilobyte
+    /// static BIT_SET: AtomicBitSet<{ slot_count::from_kilobytes(1) }> = AtomicBitSet::new();
+    /// assert_eq!(BIT_SET.set_next_free_bit(), Some(0));
+    /// 
+    /// BIT_SET.insert(2);
+    /// assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
+    /// assert_eq!(BIT_SET.set_next_free_bit(), Some(3));
+    ///
+    /// BIT_SET.remove(1);
+    /// assert_eq!(BIT_SET.has(1), false);
+    /// assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
+    ///
+    /// assert_eq!(BIT_SET.size(), 4);
+    /// // it can hold up to 8192 unique identifiers.
+    /// assert_eq!(BIT_SET.capacity(), 8192);
     /// ```
     pub fn set_next_free_bit(&self) -> Option<usize> {
         // rotate the slots to find the next free id

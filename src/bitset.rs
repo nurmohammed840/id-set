@@ -153,7 +153,7 @@ macro_rules! impl_atomic_bit_set {
 }
 
 impl_bit_set! {
-    u32, u64, usize, u128
+    u16, u32, u64, usize, u128
 }
 
 impl_atomic_bit_set! {

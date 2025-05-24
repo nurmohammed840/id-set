@@ -18,8 +18,8 @@ pub trait BitSetMut<T> {
 
     /// Inserts the value into the set.
     ///
-    /// Returns `true` if the value was already set.
-    /// Returns `None` if the set cannot hold the value.
+    /// Returns `Ok(true)` if the value was already set.
+    /// Returns `Err(usize)` if the set cannot hold the value, where `usize` is the index of the slot.
     ///
     /// # Example
     ///
@@ -30,7 +30,7 @@ pub trait BitSetMut<T> {
     /// bitset.insert(0);
     /// assert_eq!(bitset.has(0), true);
     /// ```
-    fn insert(&mut self, _: T) -> Option<bool>;
+    fn insert(&mut self, _: T) -> Result<bool, usize>;
 
     /// Removes the value from the set
     ///
@@ -52,6 +52,32 @@ pub trait BitSetMut<T> {
     fn remove(&mut self, _: T) -> Option<bool>;
 }
 
+impl<T> BitSetMut<T> for Vec<T>
+where
+    T: Default + Clone,
+    [T]: BitSetMut<T>,
+{
+    #[inline]
+    fn clear(&mut self) {
+        Vec::clear(self);
+    }
+
+    fn insert(&mut self, value: T) -> Result<bool, usize> {
+        match self.as_mut_slice().insert(value.clone()) {
+            Ok(has) => Ok(has),
+            Err(slot_index) => {
+                self.resize(slot_index + 1, T::default());
+                self.as_mut_slice().insert(value)
+            }
+        }
+    }
+
+    #[inline]
+    fn remove(&mut self, value: T) -> Option<bool> {
+        self.as_mut_slice().remove(value)
+    }
+}
+
 macro_rules! impl_deref_mut {
     ($($target: ty),*) => {$(
         impl<Set, T> BitSetMut<T> for $target
@@ -64,7 +90,7 @@ macro_rules! impl_deref_mut {
             }
 
             #[inline]
-            fn insert(&mut self, index: T) -> Option<bool> {
+            fn insert(&mut self, index: T) -> Result<bool, usize> {
                 BitSetMut::insert(&mut **self, index)
             }
 
@@ -90,14 +116,14 @@ macro_rules! impl_bit_set_mut {
             }
 
             #[inline]
-            fn insert(&mut self, index: $ty) -> Option<bool> {
-                let slot_idx = usize::try_from(index / $ty::BITS as $ty).ok()?;
+            fn insert(&mut self, index: $ty) -> Result<bool, usize> {
+                let slot_idx = usize::try_from(index / $ty::BITS as $ty).unwrap();
                 let mask = 1 << (index % $ty::BITS as $ty);
-                let slot = self.get_mut(slot_idx)?;
+                let slot = self.get_mut(slot_idx).ok_or(slot_idx)?;
 
                 let old_value = *slot & mask != 0;
                 *slot |= mask;
-                Some(old_value)
+                Ok(old_value)
             }
 
             #[inline]
@@ -115,5 +141,5 @@ macro_rules! impl_bit_set_mut {
 }
 
 impl_bit_set_mut! {
-    u32, u64, usize, u128
+    u16, u32, u64, usize, u128
 }

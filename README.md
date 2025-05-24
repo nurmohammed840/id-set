@@ -26,31 +26,24 @@ Add this to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-index-set = "0.1"
+index-set = "0.2"
 ```
 
 Here is a simple example of how to use `AtomicBitSet`:
 
 ```rust
 use index_set::{AtomicBitSet, slot_count, BitSet, SharedBitSet};
-
-// Create a new AtomicBitSet with memory size of 1 kilobyte
+// Create `AtomicBitSet` with memory size of 1 kilobyte
 static BIT_SET: AtomicBitSet<{ slot_count::from_kilobytes(1) }> = AtomicBitSet::new();
 
 fn main() {
     assert_eq!(BIT_SET.set_next_free_bit(), Some(0));
-
     BIT_SET.insert(2);
     assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
-    assert_eq!(BIT_SET.set_next_free_bit(), Some(3));
-
     BIT_SET.remove(1);
-    assert_eq!(BIT_SET.has(1), false);
     assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
 
-    assert_eq!(BIT_SET.size(), 4);
-
-    // it can hold up to 8192 unique identifiers.
+    assert_eq!(BIT_SET.size(), 3);
     assert_eq!(BIT_SET.capacity(), 8192);
 }
 ```
@@ -58,16 +51,28 @@ fn main() {
 Here is basic usage of `BitSet` and `BitSetMut` traits.
 
 ```rust
-use index_set::{BitSet, BitSetMut, slot_count};
+use index_set::{BitSet, BitSetMut};
 
-fn main() {
-    let mut bitset = [0_u32; 2];
+let mut bitset = [0_u32; 2];
 
-    bitset.insert(42);
-    assert_eq!(bitset.has(42), true);
-    assert_eq!(bitset.remove(42), Some(true));
+bitset.insert(42);
+assert_eq!(bitset.has(42), true);
+assert_eq!(bitset.remove(42), Some(true));
 
-    assert_eq!(bitset.size(), 0);
-    assert_eq!(bitset.capacity(), 64);
-}
+assert_eq!(bitset.size(), 0);
+assert_eq!(bitset.capacity(), 64);
+```
+
+Here is an example of bitvec, which is `Vec<T>` that implements `BitSetMut` traits.
+
+```rust
+use index_set::{BitSet, BitSetMut};
+
+let mut bitvec: Vec<u32> = Vec::new();
+
+BitSetMut::insert(&mut bitvec, 42);
+assert_eq!(bitvec.has(42), true);
+assert_eq!(BitSetMut::remove(&mut bitvec, 42), Some(true));
+
+assert_eq!(bitvec.size(), 0);
 ```
