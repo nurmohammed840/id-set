@@ -37,13 +37,12 @@ use index_set::{AtomicBitSet, slot_count, BitSet, SharedBitSet};
 static BIT_SET: AtomicBitSet<{ slot_count::from_kilobytes(1) }> = AtomicBitSet::new();
 
 fn main() {
-    assert_eq!(BIT_SET.set_next_free_bit(), Some(0));
-    BIT_SET.insert(2);
+    BIT_SET.insert(0);
     assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
     BIT_SET.remove(1);
     assert_eq!(BIT_SET.set_next_free_bit(), Some(1));
 
-    assert_eq!(BIT_SET.size(), 3);
+    assert_eq!(BIT_SET.size(), 2);
     assert_eq!(BIT_SET.capacity(), 8192);
 }
 ```
